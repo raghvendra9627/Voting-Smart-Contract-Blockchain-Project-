@@ -1,0 +1,139 @@
+// SPDX-License-Identifier: GPL-3.0
+
+pragma solidity >=0.8.2 <0.9.0;
+
+contract Vote {
+    address electionCommission;
+    address public  winner;
+
+    struct Voter{
+        string name;
+        uint age;
+        uint voterId;
+        string gender;
+        uint voteCandidateId;
+        address voterAddress;
+    }
+
+    struct Candidate{
+        string name;
+        string party;
+        uint age;
+        string gender;
+        uint candidateId;
+        address candidateAddress;
+        uint votes;
+    }
+
+    uint nextVoterId = 1;
+    uint nextCandidateId = 1;
+
+    uint startTime;
+    uint endTime;
+
+    mapping (uint=>Voter) public voterDetails;
+    mapping (uint=>Candidate) public candidateDetails;
+    bool stopVoting;
+
+    constructor(){
+        electionCommission = msg.sender;
+    }
+
+    modifier onlyCommissioner(){
+        require(electionCommission==msg.sender,"Not from election Commission");
+        _;
+    }
+
+    function candidateRegister(string calldata _name,string calldata _party,string calldata _gender,uint _age)external {
+        require(msg.sender!=electionCommission,"You are from election Commission");
+        require(candidateVerification(msg.sender),"You are Already Registered");
+        require(_age>30,"you are not eligible");
+        require(nextCandidateId<3,"Candidate Registration Full");
+        candidateDetails[nextCandidateId] = Candidate(_name,_party,_age,_gender,nextCandidateId,msg.sender,0);
+        nextCandidateId++; 
+    }
+    function candidateVerification(address _person)internal view returns (bool){
+        for(uint i = 1; i<nextCandidateId;i++){
+            if(candidateDetails[i].candidateAddress == _person){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function candidateList()public view returns(Candidate[] memory){
+        Candidate[] memory arr = new Candidate[](nextCandidateId-1);
+        for(uint i = 1;i<nextCandidateId;i++){
+            arr[i-1] = candidateDetails[i];
+        }
+        return arr;
+    }
+
+    function voterRegister(string calldata _name,string calldata _gender,uint _age)external {
+        require(voterVerification(msg.sender),"You are Already Registered");
+        require(_age>18,"you are not eligible");
+        voterDetails[nextVoterId] = Voter(_name,_age,nextVoterId,_gender,0,msg.sender);
+        nextVoterId++; 
+    }
+
+    function voterVerification(address _person)internal view returns (bool){
+        for(uint i = 1; i<nextVoterId;i++){
+            if(voterDetails[i].voterAddress == _person){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function voterList()public view returns(Voter[] memory){
+        Voter[] memory arr = new Voter[](nextVoterId-1);
+        for(uint i = 1;i<nextVoterId;i++){
+            arr[i-1] = voterDetails[i];
+        }
+        return arr;
+    }
+
+    function vote(uint _voterId, uint _candidateId)external {
+        require(voterDetails[_voterId].voteCandidateId == 0, "You have Already Voted");
+        require(voterDetails[_voterId].voterAddress == msg.sender,"you are Not Registered");
+        require(startTime != 0,"Voting Has Not Started Yet");
+        require(nextCandidateId==3,"Candidate Registration is Still in Progress");
+        voterDetails[_voterId].voteCandidateId = _candidateId;
+        candidateDetails[_candidateId].votes++;
+    }
+
+    function voteTime(uint _startTime,uint _endTime)external  onlyCommissioner(){
+        startTime = _startTime+block.timestamp;
+        endTime = startTime+_endTime;
+    }
+
+    function votingStatus()public view returns(string memory){
+        if(startTime == 0){
+            return "Votinng Not Started";
+        }
+        else if((endTime>block.timestamp)&&(stopVoting==false))
+        {
+            return "voting in Progress";
+        }
+        else {
+            return "Voting Ended";
+        }
+    }
+
+    function emergency()external onlyCommissioner(){
+        stopVoting = true;
+    }
+
+    function result() external onlyCommissioner(){
+        uint max;
+        for(uint i = 1;i<nextCandidateId;i++){
+            if(candidateDetails[i].votes>max){
+                max = candidateDetails[i].votes;
+                winner = candidateDetails[i].candidateAddress;
+            }
+        }
+    }
+
+
+
+}
